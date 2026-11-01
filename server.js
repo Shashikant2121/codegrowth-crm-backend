@@ -13,22 +13,30 @@ const app = express();
 app.use(authMiddleware);
 
 // Middleware
+
 const allowedOrigins = [
   "http://localhost:5173",
-  process.env.FRONTEND_URL,
+  "http://127.0.0.1:5173",
+  process.env.FRONTEND_URL?.trim().replace(/\/$/, ""),
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+      return callback(null, true);
+    }
 
-      callback(new Error("Not allowed by CORS"));
-    },
-  }),
-);
+    console.log("Blocked CORS origin:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 
 // IMPORTANT: Parse incoming JSON requests
 app.use(express.json());
