@@ -10,7 +10,6 @@ dotenv.config();
 const app = express();
 
 // Middleware
-
 const allowedOrigins = [
   "http://localhost:5173",
   process.env.FRONTEND_URL,
@@ -28,6 +27,9 @@ app.use(
   }),
 );
 
+// IMPORTANT: Parse incoming JSON requests
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Home route
 app.get("/", (req, res) => {
@@ -60,19 +62,26 @@ app.get("/api/leads", async (req, res) => {
 // POST - Add New Lead
 app.post("/api/leads", async (req, res) => {
   try {
-    const { name, phone, course } = req.body;
+    const { name, phone, course } = req.body || {};
 
-    if (!name?.trim() || !phone?.trim() || !course?.trim()) {
+    if (
+      typeof name !== "string" ||
+      typeof phone !== "string" ||
+      typeof course !== "string" ||
+      !name.trim() ||
+      !phone.trim() ||
+      !course.trim()
+    ) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "Name, phone and course are required",
       });
     }
 
     const newLead = await Lead.create({
-      name,
-      phone,
-      course,
+      name: name.trim(),
+      phone: phone.trim(),
+      course: course.trim(),
     });
 
     res.status(201).json({
@@ -91,7 +100,7 @@ app.post("/api/leads", async (req, res) => {
 // PATCH - Update Lead Status
 app.patch("/api/leads/:id", async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status } = req.body || {};
 
     const allowedStatus = ["New", "Follow-up", "Converted"];
 
@@ -155,7 +164,7 @@ app.delete("/api/leads/:id", async (req, res) => {
   }
 });
 
-// Database connection
+// Database connection and server start
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
