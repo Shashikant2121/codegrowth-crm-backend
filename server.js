@@ -4,10 +4,13 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import Lead from "./models/Lead.js";
+import authRoutes from "./routes/authRoutes.js";
+import authMiddleware from "./middleware/authMiddleware.js";
 
 dotenv.config();
 
 const app = express();
+app.use(authMiddleware);
 
 // Middleware
 const allowedOrigins = [
@@ -31,6 +34,8 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use("/api/auth", authRoutes);
+
 // Home route
 app.get("/", (req, res) => {
   res.json({
@@ -39,12 +44,13 @@ app.get("/", (req, res) => {
   });
 });
 
-// GET - All Leads
-app.get("/api/leads", async (req, res) => {
+
+// GET - Only this institute's leads
+app.get("/api/leads", authMiddleware, async (req, res) => {
   try {
-    const leads = await Lead.find().sort({
-      createdAt: -1,
-    });
+    const leads = await Lead.find({
+      instituteId: req.user.instituteId,
+    }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -59,8 +65,8 @@ app.get("/api/leads", async (req, res) => {
   }
 });
 
-// POST - Add New Lead
-app.post("/api/leads", async (req, res) => {
+// POST - Add lead to logged-in user's institute
+app.post("/api/leads", authMiddleware, async (req, res) => {
   try {
     const { name, phone, course } = req.body || {};
 
@@ -82,6 +88,7 @@ app.post("/api/leads", async (req, res) => {
       name: name.trim(),
       phone: phone.trim(),
       course: course.trim(),
+      instituteId: req.user.instituteId,
     });
 
     res.status(201).json({
@@ -97,11 +104,10 @@ app.post("/api/leads", async (req, res) => {
   }
 });
 
-// PATCH - Update Lead Status
-app.patch("/api/leads/:id", async (req, res) => {
+// PATCH - Update only this institute's lead
+app.patch("/api/leads/:id", authMiddleware, async (req, res) => {
   try {
     const { status } = req.body || {};
-
     const allowedStatus = ["New", "Follow-up", "Converted"];
 
     if (!allowedStatus.includes(status)) {
@@ -111,13 +117,16 @@ app.patch("/api/leads/:id", async (req, res) => {
       });
     }
 
-    const updatedLead = await Lead.findByIdAndUpdate(
-      req.params.id,
+    const updatedLead = await Lead.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        instituteId: req.user.instituteId,
+      },
       { status },
       {
         new: true,
         runValidators: true,
-      },
+      }
     );
 
     if (!updatedLead) {
@@ -140,10 +149,13 @@ app.patch("/api/leads/:id", async (req, res) => {
   }
 });
 
-// DELETE - Delete Lead
-app.delete("/api/leads/:id", async (req, res) => {
+// DELETE - Delete only this institute's lead
+app.delete("/api/leads/:id", authMiddleware, async (req, res) => {
   try {
-    const deletedLead = await Lead.findByIdAndDelete(req.params.id);
+    const deletedLead = await Lead.findOneAndDelete({
+      _id: req.params.id,
+      instituteId: req.user.instituteId,
+    });
 
     if (!deletedLead) {
       return res.status(404).json({
@@ -163,6 +175,7 @@ app.delete("/api/leads/:id", async (req, res) => {
     });
   }
 });
+
 
 // Database connection and server start
 const PORT = process.env.PORT || 5000;
